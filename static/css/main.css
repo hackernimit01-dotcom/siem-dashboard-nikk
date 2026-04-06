@@ -316,6 +316,18 @@ h6 {
   border-top: 1px solid var(--border-color);
 }
 
+.install-app-panel {
+  padding: 0 1.25rem 1.25rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.install-app-panel .btn {
+  padding: 0.4rem 0.8rem;
+}
+
 .toggle-switch {
   position: relative;
   display: inline-block;

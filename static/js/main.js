@@ -1,3 +1,5 @@
+let deferredInstallPrompt = null;
+
 // Theme toggle functionality
 document.addEventListener('DOMContentLoaded', function() {
     // Set theme based on cookie or system preference
@@ -116,6 +118,48 @@ document.addEventListener('DOMContentLoaded', function() {
                     eventsTable.style.display = eventsTableCheckbox.checked ? '' : 'none';
                 }
             }
+        });
+    }
+
+    const installAppPanel = document.getElementById('install-app-panel');
+    const installAppBtn = document.getElementById('install-app-btn');
+
+    window.addEventListener('beforeinstallprompt', function(event) {
+        event.preventDefault();
+        deferredInstallPrompt = event;
+        if (installAppPanel) {
+            installAppPanel.hidden = false;
+        }
+    });
+
+    window.addEventListener('appinstalled', function() {
+        deferredInstallPrompt = null;
+        if (installAppPanel) {
+            installAppPanel.hidden = true;
+        }
+        showToast('SIEM Dashboard installed on this device.', 'success');
+    });
+
+    if (installAppBtn) {
+        installAppBtn.addEventListener('click', async function() {
+            if (!deferredInstallPrompt) {
+                showToast('Use your browser menu to install this app.', 'info');
+                return;
+            }
+
+            deferredInstallPrompt.prompt();
+            await deferredInstallPrompt.userChoice;
+            deferredInstallPrompt = null;
+
+            if (installAppPanel) {
+                installAppPanel.hidden = true;
+            }
+        });
+    }
+
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js').catch(function(error) {
+            console.warn('Service worker registration failed:', error);
         });
     }
 });

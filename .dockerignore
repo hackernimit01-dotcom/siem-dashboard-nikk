@@ -1,0 +1,14 @@
+.git
+.gitignore
+.venv
+__pycache__
+.mypy_cache
+.vscode
+instance
+*.pyc
+*.pyo
+*.pyd
+node_modules
+npm-debug.log
+dist
+build

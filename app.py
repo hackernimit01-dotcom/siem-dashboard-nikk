@@ -7,6 +7,7 @@ import json
 import os
 import platform
 import subprocess
+import sys
 from datetime import datetime, timezone
 from io import StringIO
 from typing import Any, Dict, List, Optional, cast
@@ -15,9 +16,11 @@ from flask import (
     Flask,
     Response,
     jsonify,
+    make_response,
     redirect,
     render_template,
     request,
+    send_from_directory,
     url_for,
 )
 from dotenv import load_dotenv
@@ -34,15 +37,34 @@ from models import User, db
 
 load_dotenv()
 
-app = Flask(__name__)
+if getattr(sys, "frozen", False):
+    BUNDLE_DIR = getattr(sys, "_MEIPASS", os.path.dirname(sys.executable))
+    APP_DATA_ROOT = os.path.dirname(sys.executable)
+else:
+    BUNDLE_DIR = os.path.dirname(os.path.abspath(__file__))
+    APP_DATA_ROOT = BUNDLE_DIR
+
+default_sqlite_path = os.path.join(APP_DATA_ROOT, "users.db").replace(
+    "\\", "/"
+)
+default_database_url = f"sqlite:///{default_sqlite_path}"
+
+app = Flask(
+    __name__,
+    static_folder=os.path.join(BUNDLE_DIR, "static"),
+    template_folder=os.path.join(BUNDLE_DIR, "templates"),
+)
 app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "dev-secret-key")
 app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv(
-    "DATABASE_URL", "sqlite:///users.db"
+    "DATABASE_URL", default_database_url
 )
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 db.init_app(app)
 
-DATA_DIR = os.path.join("static", "data")
+DATA_DIR = os.path.join(
+    app.static_folder or os.path.join(BUNDLE_DIR, "static"),
+    "data",
+)
 
 SEVERITY_WEIGHTS: Dict[str, float] = {
     "critical": 8.0,
@@ -277,6 +299,7 @@ def calculate_security_score(
     blocked_ips_data: List[Dict[str, Any]],
     logs_data: List[Dict[str, Any]],
     vulnerabilities_data: List[Dict[str, Any]],
+    system_signals: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Calculate an overall security score from telemetry and host controls."""
     active_vulnerability_penalty = 0.0
@@ -315,7 +338,8 @@ def calculate_security_score(
     )
     blocked_threat_penalty = min(float(severe_blocked_ips), 10.0)
 
-    system_signals = collect_system_security_signals()
+    if system_signals is None:
+        system_signals = collect_system_security_signals()
     system_control_penalty = 0.0
     known_system_controls = 0
 
@@ -388,11 +412,140 @@ def calculate_security_score(
     }
 
 
+def calculate_connected_device_security_score(
+    system_signals: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """Calculate security score for the host device running the dashboard."""
+    if system_signals is None:
+        system_signals = collect_system_security_signals()
+
+    device_penalty = 0.0
+    known_controls = 0
+
+    firewall_profiles_total = system_signals.get("firewall_profiles_total")
+    firewall_profiles_enabled = system_signals.get("firewall_profiles_enabled")
+    if (
+        isinstance(firewall_profiles_total, int)
+        and isinstance(firewall_profiles_enabled, int)
+        and firewall_profiles_total > 0
+    ):
+        known_controls += 1
+        disabled_profiles = max(
+            firewall_profiles_total - firewall_profiles_enabled, 0
+        )
+        if disabled_profiles == firewall_profiles_total:
+            device_penalty += 25.0
+        elif disabled_profiles > 0:
+            device_penalty += 12.0
+
+    for signal_name, penalty in [
+        ("realtime_protection", 25.0),
+        ("antivirus_enabled", 20.0),
+        ("antispyware_enabled", 10.0),
+        ("disk_encryption_enabled", 15.0),
+    ]:
+        signal_value = system_signals.get(signal_name)
+        if isinstance(signal_value, bool):
+            known_controls += 1
+            if not signal_value:
+                device_penalty += penalty
+
+    signature_age_hours = system_signals.get("signature_age_hours")
+    if isinstance(signature_age_hours, (int, float)):
+        known_controls += 1
+        if signature_age_hours > 168:
+            device_penalty += 12.0
+        elif signature_age_hours > 72:
+            device_penalty += 6.0
+
+    if known_controls == 0:
+        device_penalty += 20.0
+
+    score = int(round(max(0.0, min(100.0, 100.0 - device_penalty))))
+    return {
+        "score": score,
+        "risk_level": get_risk_level(score),
+        "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "device_name": platform.node() or "Connected Device",
+        "platform": str(system_signals.get("platform", "Unknown")),
+        "known_controls": known_controls,
+        "control_penalty": round(device_penalty, 2),
+    }
+
+
+def calculate_client_device_security_score(
+    client_signals: Dict[str, Any],
+) -> Dict[str, Any]:
+    """Calculate a score for the active client device/browser signals."""
+    penalty = 0.0
+    known_controls = 0
+
+    def read_flag(name: str) -> Optional[bool]:
+        value = normalize_bool(client_signals.get(name))
+        if value is not None:
+            return value
+        return None
+
+    is_secure_context = read_flag("is_secure_context")
+    is_https = read_flag("is_https")
+    is_localhost = read_flag("is_localhost")
+    cookie_enabled = read_flag("cookie_enabled")
+    has_webcrypto = read_flag("has_webcrypto")
+    has_webauthn = read_flag("has_webauthn")
+    has_service_worker = read_flag("has_service_worker")
+    do_not_track_enabled = read_flag("do_not_track_enabled")
+
+    for flag in [
+        is_secure_context,
+        is_https,
+        cookie_enabled,
+        has_webcrypto,
+        has_webauthn,
+        has_service_worker,
+        do_not_track_enabled,
+    ]:
+        if flag is not None:
+            known_controls += 1
+
+    if is_secure_context is False:
+        penalty += 35.0
+    if is_https is False and not is_localhost:
+        penalty += 25.0
+    if cookie_enabled is False:
+        penalty += 10.0
+    if has_webcrypto is False:
+        penalty += 15.0
+    if has_webauthn is False:
+        penalty += 10.0
+    if has_service_worker is False:
+        penalty += 5.0
+    if do_not_track_enabled is False:
+        penalty += 3.0
+    if known_controls == 0:
+        penalty += 40.0
+
+    score = int(round(max(0.0, min(100.0, 100.0 - penalty))))
+    device_name = str(client_signals.get("device_name") or "This Device")
+    platform_name = str(client_signals.get("platform") or "Unknown")
+
+    return {
+        "score": score,
+        "risk_level": get_risk_level(score),
+        "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "device_name": device_name,
+        "platform": platform_name,
+        "known_controls": known_controls,
+        "control_penalty": round(penalty, 2),
+        "source": "client_device",
+    }
+
+
 def get_dashboard_metrics() -> Dict[str, Any]:
     """Aggregate top-level dashboard metric values."""
     blocked_ips_data = load_data_safely("blocked_ips")
     logs_data = load_data_safely("access_logs")
     vulnerabilities_data = load_data_safely("vulnerabilities")
+    system_signals = collect_system_security_signals()
     active_vulnerabilities = sum(
         1
         for vulnerability in vulnerabilities_data
@@ -404,7 +557,13 @@ def get_dashboard_metrics() -> Dict[str, Any]:
         "access_attempts_count": len(logs_data),
         "active_vulnerabilities_count": active_vulnerabilities,
         "security_score": calculate_security_score(
-            blocked_ips_data, logs_data, vulnerabilities_data
+            blocked_ips_data,
+            logs_data,
+            vulnerabilities_data,
+            system_signals=system_signals,
+        ),
+        "connected_device_security_score": (
+            calculate_connected_device_security_score(system_signals)
         ),
     }
 
@@ -620,6 +779,9 @@ def index():
         access_attempts_count=metrics["access_attempts_count"],
         active_vulnerabilities_count=metrics["active_vulnerabilities_count"],
         security_score=metrics["security_score"],
+        connected_device_security_score=metrics[
+            "connected_device_security_score"
+        ],
     )
 
 
@@ -681,6 +843,32 @@ def api_security_score():
     """Serve calculated security score as JSON."""
     metrics = get_dashboard_metrics()
     return jsonify(metrics["security_score"])
+
+
+@app.route("/api/connected_device_security_score")
+@login_required
+def api_connected_device_security_score():
+    """Serve connected device security score as JSON."""
+    metrics = get_dashboard_metrics()
+    return jsonify(metrics["connected_device_security_score"])
+
+
+@app.route("/api/client_security_score", methods=["POST"])
+@login_required
+def api_client_security_score():
+    """Serve security score based on the currently connected client device."""
+    payload = request.get_json(silent=True) or {}
+    if not isinstance(payload, dict):
+        payload = {}
+
+    if "user_agent" not in payload:
+        payload["user_agent"] = request.headers.get("User-Agent", "")
+    if "platform" not in payload and request.user_agent.platform:
+        payload["platform"] = request.user_agent.platform
+    if "device_name" not in payload:
+        payload["device_name"] = "This Device"
+
+    return jsonify(calculate_client_device_security_score(payload))
 
 
 @app.route("/toggle_theme", methods=["POST"])
@@ -747,6 +935,18 @@ def audit_log():
 def health() -> Response:
     """Lightweight health check endpoint for deploy targets."""
     return jsonify({"status": "ok", "service": "siem-dashboard"})
+
+
+@app.route("/sw.js")
+def service_worker() -> Response:
+    """Serve the service worker from root scope for PWA install support."""
+    sw_response = make_response(
+        send_from_directory(app.static_folder or "", "sw.js")
+    )
+    sw_response.headers["Content-Type"] = "application/javascript"
+    sw_response.headers["Service-Worker-Allowed"] = "/"
+    sw_response.headers["Cache-Control"] = "no-cache"
+    return sw_response
 
 
 @app.route("/register", methods=["GET", "POST"])

@@ -3,7 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#1f2f4f">
     <title>{% block title %}SIEM Dashboard{% endblock %}</title>
+    <link rel="manifest" href="{{ url_for('static', filename='manifest.webmanifest') }}">
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='icons/siem-192.png') }}">
+    <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/siem-192.png') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -79,6 +83,11 @@
                     <span class="toggle-slider"></span>
                 </label>
             </form>
+        </div>
+
+        <div class="install-app-panel" id="install-app-panel" hidden>
+            <span>Install App</span>
+            <button id="install-app-btn" type="button" class="btn btn-outline">Install</button>
         </div>
     </div>
     

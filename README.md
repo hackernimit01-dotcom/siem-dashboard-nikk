@@ -60,6 +60,12 @@ A full-stack Security Information and Event Management (SIEM) Dashboard built to
 pip install -r requirements.txt
 ```
 
+Windows one-click setup:
+
+```powershell
+.\install_webapp.bat
+```
+
 ---
 
 ## 🌐 Run As Web App
@@ -72,6 +78,25 @@ python app.py
 
 Open: `http://127.0.0.1:5000`
 
+Windows one-click run (production-style local server):
+
+```powershell
+.\run_webapp.bat
+```
+
+PowerShell alternative:
+
+```powershell
+.\run_webapp.ps1
+```
+
+### Install On PC As Web App (PWA)
+
+1. Start the app with `.\run_webapp.bat`.
+2. Open `http://127.0.0.1:5000` in Chrome or Edge.
+3. Click `Install App` in the sidebar (or browser menu: `Install SIEM Dashboard`).
+4. The app will install as a standalone desktop app window.
+
 ### Production (Linux/macOS)
 
 ```bash
@@ -83,6 +108,15 @@ gunicorn -w 2 -b 0.0.0.0:5000 wsgi:application
 ```bash
 waitress-serve --host=0.0.0.0 --port=5000 wsgi:application
 ```
+
+### Build And Run With Docker
+
+```bash
+docker build -t siem-dashboard .
+docker run --name siem-dashboard-app -p 5000:5000 --env-file .env.example siem-dashboard
+```
+
+Open: `http://127.0.0.1:5000`
 
 ### Health Check
 

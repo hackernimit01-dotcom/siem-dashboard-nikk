@@ -11,6 +11,7 @@
 {% set access_attempts_count = access_attempts_count|default(0, true) %}
 {% set active_vulnerabilities_count = active_vulnerabilities_count|default(0, true) %}
 {% set security_score = security_score|default({'score': 0, 'risk_level': 'Unknown', 'updated_at': 'N/A'}, true) %}
+{% set connected_device_security_score = connected_device_security_score|default({'score': 0, 'risk_level': 'Unknown', 'updated_at': 'N/A', 'device_name': 'Connected Device', 'platform': 'Unknown', 'known_controls': 0}, true) %}
 {# dashboard_defaults_applied #}
 <div class="page-header dashboard-header" role="banner" aria-label="Dashboard Header">
     <div class="dashboard-heading">
@@ -95,6 +96,27 @@
                 <span class="score-progress-fill score-{{ security_score.risk_level|lower }}" id="security-score-progress" style="width: {{ security_score.score }}%;"></span>
             </div>
             <div class="card-description" id="security-score-description">Overall security posture score - {{ security_score.risk_level }} risk (updated {{ security_score.updated_at }})</div>
+        </div>
+    </div>
+
+    <div class="card dashboard-score-card card-score">
+        <div class="card-header">
+            <h2 class="card-title">Connected Device Score</h2>
+            <div class="card-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect width="14" height="10" x="5" y="3" rx="2"/><path d="M8 21h8"/><path d="M12 13v8"/>
+                </svg>
+            </div>
+        </div>
+        <div class="card-content">
+            <div class="score-row">
+                <div class="card-value score-{{ connected_device_security_score.risk_level|lower }}" id="device-score-value">{{ connected_device_security_score.score }}%</div>
+                <span class="risk-pill risk-{{ connected_device_security_score.risk_level|lower }}" id="device-risk-pill">{{ connected_device_security_score.risk_level }} Risk</span>
+            </div>
+            <div class="score-progress" aria-label="Connected device score progress">
+                <span class="score-progress-fill score-{{ connected_device_security_score.risk_level|lower }}" id="device-score-progress" style="width: {{ connected_device_security_score.score }}%;"></span>
+            </div>
+            <div class="card-description" id="device-score-description">{{ connected_device_security_score.device_name }} ({{ connected_device_security_score.platform }}) - {{ connected_device_security_score.known_controls }} controls detected (updated {{ connected_device_security_score.updated_at }})</div>
         </div>
     </div>
     
@@ -286,7 +308,100 @@ document.addEventListener('DOMContentLoaded', function() {
             });
     }
 
+    function applyConnectedDeviceScore(data) {
+        var scoreElement = document.getElementById('device-score-value');
+        var descriptionElement = document.getElementById('device-score-description');
+        var progressElement = document.getElementById('device-score-progress');
+        var riskPill = document.getElementById('device-risk-pill');
+        if (!scoreElement || !descriptionElement || !data) return;
+
+        var score = typeof data.score === 'number' ? data.score : parseInt(data.score, 10);
+        if (isNaN(score)) return;
+        score = Math.max(0, Math.min(100, score));
+
+        scoreElement.textContent = score + '%';
+        scoreElement.classList.remove('score-low', 'score-moderate', 'score-high', 'score-critical');
+
+        var riskLevel = String(data.risk_level || 'Unknown');
+        var riskLevelClass = riskLevel.toLowerCase();
+        if (['low', 'moderate', 'high', 'critical'].indexOf(riskLevelClass) !== -1) {
+            scoreElement.classList.add('score-' + riskLevelClass);
+        }
+        if (progressElement) {
+            progressElement.style.width = score + '%';
+            progressElement.classList.remove('score-low', 'score-moderate', 'score-high', 'score-critical');
+            if (['low', 'moderate', 'high', 'critical'].indexOf(riskLevelClass) !== -1) {
+                progressElement.classList.add('score-' + riskLevelClass);
+            }
+        }
+        if (riskPill) {
+            riskPill.textContent = riskLevel + ' Risk';
+            riskPill.classList.remove('risk-low', 'risk-moderate', 'risk-high', 'risk-critical');
+            if (['low', 'moderate', 'high', 'critical'].indexOf(riskLevelClass) !== -1) {
+                riskPill.classList.add('risk-' + riskLevelClass);
+            }
+        }
+
+        var deviceName = String(data.device_name || 'Connected Device');
+        var platformName = String(data.platform || 'Unknown');
+        var knownControls = typeof data.known_controls === 'number' ? data.known_controls : 0;
+        var updatedAt = data.updated_at ? ' (updated ' + data.updated_at + ')' : '';
+        descriptionElement.textContent = deviceName + ' (' + platformName + ') - ' + knownControls + ' controls detected' + updatedAt;
+    }
+
+    function refreshConnectedDeviceScore() {
+        var hostname = String(window.location.hostname || '').toLowerCase();
+        var isLocalhost = ['localhost', '127.0.0.1', '::1'].indexOf(hostname) !== -1;
+        var ua = navigator.userAgent || '';
+        var deviceName = 'This Device';
+        if (/android/i.test(ua)) {
+            deviceName = 'Android Device';
+        } else if (/iphone|ipad|ipod/i.test(ua)) {
+            deviceName = 'iOS Device';
+        } else if (/windows/i.test(ua)) {
+            deviceName = 'Windows Device';
+        } else if (/macintosh|mac os x/i.test(ua)) {
+            deviceName = 'Mac Device';
+        } else if (/linux/i.test(ua)) {
+            deviceName = 'Linux Device';
+        }
+
+        var dnt = navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack;
+        var payload = {
+            device_name: deviceName,
+            platform: navigator.platform || 'Unknown',
+            user_agent: ua,
+            is_secure_context: !!window.isSecureContext,
+            is_https: window.location.protocol === 'https:',
+            is_localhost: isLocalhost,
+            cookie_enabled: !!navigator.cookieEnabled,
+            has_webcrypto: !!(window.crypto && window.crypto.subtle),
+            has_webauthn: !!window.PublicKeyCredential,
+            has_service_worker: !!navigator.serviceWorker,
+            do_not_track_enabled: dnt === '1' || String(dnt).toLowerCase() === 'yes'
+        };
+
+        fetch('/api/client_security_score', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        })
+            .then(function(res) {
+                if (!res.ok) {
+                    throw new Error('Unable to fetch client device score');
+                }
+                return res.json();
+            })
+            .then(function(data) {
+                applyConnectedDeviceScore(data);
+            })
+            .catch(function() {
+                // Keep last shown connected device score if refresh fails.
+            });
+    }
+
     refreshSecurityScore();
+    refreshConnectedDeviceScore();
 
     // Poll for new data every 10 seconds
     setInterval(function() {
@@ -303,6 +418,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 // showToast('Vulnerabilities updated', 'info');
             });
         refreshSecurityScore();
+        refreshConnectedDeviceScore();
     }, 10000);
 
     loadChartJs(function() {
