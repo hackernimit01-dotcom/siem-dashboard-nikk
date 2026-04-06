@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% block title %}Audit Log - SIEM{% endblock %}
+{% block content %}
+{% set audit_log = audit_log|default([], true) %}
+{% set audit_metrics = audit_metrics|default({'total_entries': 0, 'unique_users': 0, 'export_actions': 0}, true) %}
+{# audit_log_defaults_applied #}
+<div class="page-header">
+    <h1 class="page-title">Audit Log</h1>
+    <div class="page-actions">
+        <a href="{{ url_for('export_audit_log') }}" class="btn btn-outline">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-download">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/>
+            </svg>
+            Export
+        </a>
+        <button class="btn btn-primary" onclick="location.reload()">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-refresh-cw">
+                <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/>
+            </svg>
+            Refresh
+        </button>
+    </div>
+</div>
+
+<div class="dashboard-cards">
+    <div class="card dashboard-stat-card card-access">
+        <div class="card-header">
+            <h2 class="card-title">Total Entries</h2>
+            <div class="card-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3 6h.01"/><path d="M3 12h.01"/><path d="M3 18h.01"/>
+                </svg>
+            </div>
+        </div>
+        <div class="card-content">
+            <div class="card-value">{{ "{:,}".format(audit_metrics.total_entries) }}</div>
+            <div class="card-meta">Recorded actions</div>
+            <div class="card-description">Total audit events currently stored.</div>
+        </div>
+    </div>
+    <div class="card dashboard-stat-card card-score">
+        <div class="card-header">
+            <h2 class="card-title">Unique Users</h2>
+            <div class="card-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><path d="M20 8v6"/><path d="M23 11h-6"/>
+                </svg>
+            </div>
+        </div>
+        <div class="card-content">
+            <div class="card-value">{{ audit_metrics.unique_users }}</div>
+            <div class="card-meta">Account coverage</div>
+            <div class="card-description">Distinct users captured in the audit trail.</div>
+        </div>
+    </div>
+    <div class="card dashboard-stat-card card-blocked">
+        <div class="card-header">
+            <h2 class="card-title">Export Actions</h2>
+            <div class="card-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/>
+                </svg>
+            </div>
+        </div>
+        <div class="card-content">
+            <div class="card-value">{{ audit_metrics.export_actions }}</div>
+            <div class="card-meta">Data extraction</div>
+            <div class="card-description">Number of export operations logged.</div>
+        </div>
+    </div>
+</div>
+
+<div class="data-table-container">
+    <div class="data-table-header">
+        <h2 class="data-table-title">User Actions</h2>
+        <div class="data-table-actions">
+            <div class="search-box">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="search-icon lucide lucide-search">
+                    <circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>
+                </svg>
+                <input type="text" class="search-input" id="auditSearch" placeholder="Search audit entries..." aria-label="Search audit entries">
+            </div>
+        </div>
+    </div>
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Timestamp</th>
+                <th>User</th>
+                <th>Action</th>
+                <th>Details</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for entry in audit_log %}
+            <tr class="audit-row">
+                <td>{{ entry.timestamp }}</td>
+                <td>{{ entry.user }}</td>
+                <td>{{ entry.action }}</td>
+                <td>{{ entry.details }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var searchInput = document.getElementById('auditSearch');
+    if (!searchInput) return;
+    searchInput.addEventListener('input', function() {
+        var query = String(searchInput.value || '').toLowerCase();
+        document.querySelectorAll('.audit-row').forEach(function(row) {
+            var rowText = (row.textContent || '').toLowerCase();
+            row.style.display = rowText.includes(query) ? '' : 'none';
+        });
+    });
+});
+</script>
+{% endblock %}
+

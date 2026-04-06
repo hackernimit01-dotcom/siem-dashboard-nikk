@@ -1,0 +1,42 @@
+{
+  "python.defaultInterpreterPath": "${workspaceFolder}\\.venv\\Scripts\\python.exe",
+  "python.terminal.activateEnvironment": true,
+  "python.analysis.typeCheckingMode": "off",
+  "python.analysis.diagnosticMode": "openFilesOnly",
+  "python.analysis.extraPaths": [
+    "${workspaceFolder}"
+  ],
+  "python.analysis.reportMissingImports": "none",
+  "python.analysis.reportMissingModuleSource": "none",
+  "python.analysis.diagnosticSeverityOverrides": {
+    "reportAttributeAccessIssue": "none",
+    "reportArgumentType": "none",
+    "reportAssignmentType": "none",
+    "reportCallIssue": "none",
+    "reportGeneralTypeIssues": "none",
+    "reportIncompatibleMethodOverride": "none",
+    "reportIndexIssue": "none",
+    "reportMissingImports": "none",
+    "reportMissingModuleSource": "none",
+    "reportOperatorIssue": "none",
+    "reportOptionalCall": "none",
+    "reportOptionalMemberAccess": "none",
+    "reportOptionalSubscript": "none",
+    "reportPossiblyUnboundVariable": "none",
+    "reportReturnType": "none",
+    "reportUndefinedVariable": "none"
+  },
+  "pylint.enabled": false,
+  "flake8.enabled": false,
+  "python.analysis.exclude": [
+    "**/.venv/**",
+    "**/__pycache__/**",
+    "**/*.pyc",
+    ".mypy_cache/**"
+  ],
+  "files.associations": {
+    "templates/*.html": "jinja-html"
+  },
+  "html.validate.scripts": false,
+  "html.validate.styles": false
+}

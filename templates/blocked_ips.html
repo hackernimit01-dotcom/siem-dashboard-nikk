@@ -1,0 +1,274 @@
+{% extends "base.html" %}
+
+{% block title %}Blocked IPs - SIEM{% endblock %}
+
+{% block head_extra %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+{% endblock %}
+
+{% block content %}
+{% set blocked_ips = blocked_ips|default([], true) %}
+{% set blocked_ip_metrics = blocked_ip_metrics|default({'total_blocked_ips': 0, 'critical_blocked_ips': 0, 'high_blocked_ips': 0, 'countries_impacted': 0, 'total_block_hits': 0}, true) %}
+{# blocked_ips_defaults_applied #}
+<div class="page-header">
+    <h1 class="page-title">Blocked IPs</h1>
+    <div class="page-actions">
+        <a href="{{ url_for('export_blocked_ips') }}" class="btn btn-outline">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-download">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" x2="12" y1="15" y2="3"/>
+            </svg>
+            Export CSV
+        </a>
+        <a href="#" class="btn btn-primary" onclick="location.reload(); return false;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-refresh-cw">
+                <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
+                <path d="M21 3v5h-5"/>
+                <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/>
+                <path d="M3 21v-5h5"/>
+            </svg>
+            Refresh
+        </a>
+    </div>
+</div>
+
+<div class="dashboard-cards">
+    <div class="card dashboard-stat-card card-blocked">
+        <div class="card-header">
+            <h2 class="card-title">Total Blocked</h2>
+            <div class="card-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m4 5 14 12"/>
+                </svg>
+            </div>
+        </div>
+        <div class="card-content">
+            <div class="card-value">{{ blocked_ip_metrics.total_blocked_ips }}</div>
+            <div class="card-meta">Monitored set</div>
+            <div class="card-description">IPs currently blocked by SIEM rules.</div>
+        </div>
+    </div>
+    <div class="card dashboard-stat-card card-vulnerability">
+        <div class="card-header">
+            <h2 class="card-title">Critical / High</h2>
+            <div class="card-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/>
+                </svg>
+            </div>
+        </div>
+        <div class="card-content">
+            <div class="card-value">{{ blocked_ip_metrics.critical_blocked_ips + blocked_ip_metrics.high_blocked_ips }}</div>
+            <div class="card-meta">High pressure</div>
+            <div class="card-description">Severe sources in the blocked set.</div>
+        </div>
+    </div>
+    <div class="card dashboard-stat-card card-access">
+        <div class="card-header">
+            <h2 class="card-title">Countries Impacted</h2>
+            <div class="card-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+                </svg>
+            </div>
+        </div>
+        <div class="card-content">
+            <div class="card-value">{{ blocked_ip_metrics.countries_impacted }}</div>
+            <div class="card-meta">Geo spread</div>
+            <div class="card-description">Distinct source countries represented.</div>
+        </div>
+    </div>
+    <div class="card dashboard-stat-card card-score">
+        <div class="card-header">
+            <h2 class="card-title">Total Block Hits</h2>
+            <div class="card-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="m22 12-4-4v3h-6v2h6v3z"/><path d="M2 12h8"/><path d="M6 8 2 12l4 4"/>
+                </svg>
+            </div>
+        </div>
+        <div class="card-content">
+            <div class="card-value">{{ "{:,}".format(blocked_ip_metrics.total_block_hits) }}</div>
+            <div class="card-meta">Event volume</div>
+            <div class="card-description">Total blocked request hits recorded.</div>
+        </div>
+    </div>
+</div>
+
+<div class="map-container" id="blocked-ips-map" role="region" aria-label="Interactive map showing locations of blocked IP addresses">
+    <!-- Map will be initialized by JavaScript -->
+</div>
+
+<div class="data-table-container">
+    <div class="data-table-header">
+        <h2 class="data-table-title">Blocked IP Addresses</h2>
+        <div class="data-table-actions">
+            <div class="search-box">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="search-icon lucide lucide-search">
+                    <circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>
+                </svg>
+                <input type="text" class="search-input" placeholder="Search IPs..." aria-label="Search blocked IP addresses">
+            </div>
+        </div>
+    </div>
+    
+    <table class="data-table" role="table" aria-label="Table of blocked IP addresses with details">
+        <caption class="sr-only">Blocked IP Addresses Table</caption>
+        <thead>
+            <tr>
+                <th scope="col">IP Address</th>
+                <th scope="col">Country</th>
+                <th scope="col">Reason</th>
+                <th scope="col">Severity</th>
+                <th scope="col">Timestamp</th>
+                <th scope="col">Hits</th>
+                <th scope="col">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for ip in blocked_ips %}
+            <tr data-expandable="true" data-details-id="details-{{ loop.index }}">
+                <td>{{ ip['ip'] }}</td>
+                <td>
+                    {% if ip.get('country_code') %}
+                    <span>{{ ip['country'] }} ({{ ip['country_code'] }})</span>
+                    {% else %}
+                    <span>Unknown</span>
+                    {% endif %}
+                </td>
+                <td>{{ ip['reason'] }}</td>
+                <td>
+                    <span class="badge badge-{{ ip.get('severity', 'low') }}">{{ ip.get('severity', 'low')|capitalize }}</span>
+                </td>
+                <td>{{ ip['timestamp'] }}</td>
+                <td>{{ ip.get('hits', 0) }}</td>
+                <td>
+                    <button type="button" class="btn btn-outline btn-icon" aria-expanded="false" aria-controls="details-{{ loop.index }}" aria-label="Toggle details for IP {{ ip['ip'] }}">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down">
+                            <path d="m6 9 6 6 6-6"/>
+                        </svg>
+                    </button>
+                </td>
+            </tr>
+            <tr id="details-{{ loop.index }}" style="display: none;">
+                <td colspan="7">
+                    <div class="expandable-row-content">
+                        <h3 class="details-title">Details</h3>
+                        <p>{{ ip.get('details', 'No details available') }}</p>
+                        
+                        <div class="details-block">
+                            <h4>Geographic Information</h4>
+                            <p>
+                                <strong>Country:</strong> {{ ip.get('country', 'Unknown') }}<br>
+                                <strong>Coordinates:</strong> {{ ip.get('latitude', 'N/A') }}, {{ ip.get('longitude', 'N/A') }}
+                            </p>
+                        </div>
+                        
+                        <div class="details-actions">
+                            <button type="button" class="btn btn-outline">View Full Details</button>
+                            <button type="button" class="btn btn-primary">Whitelist IP</button>
+                        </div>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<script>
+    /* global L */
+    document.addEventListener('DOMContentLoaded', function() {
+        const mapEl = document.getElementById('blocked-ips-map');
+        if (!mapEl) return;
+        mapEl.style.minHeight = '400px';
+
+        if (typeof L === 'undefined') {
+            mapEl.innerHTML = '<div class="map-placeholder">Map failed to load.</div>';
+            return;
+        }
+
+        const map = L.map(mapEl).setView([20, 0], 2);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            maxZoom: 18
+        }).addTo(map);
+
+        const locations = [
+            {% for ip in blocked_ips if ip.get('latitude') and ip.get('longitude') %}
+            {
+                lat: {{ ip['latitude'] }},
+                lng: {{ ip['longitude'] }},
+                label: {{ ip['ip'] | tojson }},
+                country: {{ ip['country'] | tojson }},
+                reason: {{ ip['reason'] | tojson }}
+            },
+            {% endfor %}
+        ];
+
+        const markers = [];
+        locations.forEach(loc => {
+            const marker = L.marker([loc.lat, loc.lng]).addTo(map);
+            marker.bindPopup(`<strong>${loc.label}</strong><br>${loc.country}<br>${loc.reason}`);
+            markers.push(marker);
+        });
+
+        if (markers.length) {
+            const group = L.featureGroup(markers);
+            map.fitBounds(group.getBounds().pad(0.4));
+        }
+
+        setTimeout(() => {
+            map.invalidateSize();
+        }, 100);
+
+        // Handle expandable table rows
+        document.querySelectorAll('[data-expandable="true"]').forEach(row => {
+            const button = row.querySelector('button');
+            const detailsId = row.getAttribute('data-details-id');
+            const detailsRow = document.getElementById(detailsId);
+
+            if (button && detailsRow) {
+                button.addEventListener('click', function() {
+                    const isExpanded = detailsRow.style.display !== 'none';
+                    detailsRow.style.display = isExpanded ? 'none' : 'table-row';
+                    this.setAttribute('aria-expanded', !isExpanded);
+                    this.innerHTML = isExpanded ?
+                        `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down">
+                            <path d="m6 9 6 6 6-6"/>
+                        </svg>` :
+                        `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-up">
+                            <path d="m18 15-6-6-6 6"/>
+                        </svg>`;
+                });
+            }
+        });
+
+        // Handle search functionality
+        const searchInput = document.querySelector('.search-input');
+        if (searchInput) {
+            searchInput.addEventListener('input', function() {
+                const query = this.value.toLowerCase();
+                document.querySelectorAll('tbody tr[data-expandable="true"]').forEach(row => {
+                    const ip = row.cells[0].textContent.toLowerCase();
+                    const country = row.cells[1].textContent.toLowerCase();
+                    const reason = row.cells[2].textContent.toLowerCase();
+                    const visible = ip.includes(query) || country.includes(query) || reason.includes(query);
+                    row.style.display = visible ? '' : 'none';
+                    // Hide details row if main row is hidden
+                    const detailsId = row.getAttribute('data-details-id');
+                    const detailsRow = document.getElementById(detailsId);
+                    if (detailsRow) {
+                        detailsRow.style.display = visible && detailsRow.style.display !== 'none' ? 'table-row' : 'none';
+                    }
+                });
+            });
+        }
+    });
+</script>
+{% endblock %}
+

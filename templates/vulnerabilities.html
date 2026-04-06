@@ -1,0 +1,324 @@
+{% extends "base.html" %}
+
+{% block title %}Vulnerabilities - SIEM{% endblock %}
+
+{% block content %}
+{% set vulnerabilities = vulnerabilities|default([], true) %}
+{% set vulnerability_metrics = vulnerability_metrics|default({'critical_active': 0, 'high_active': 0, 'medium_active': 0, 'low_active': 0, 'fixed_total': 0, 'active_total': 0}, true) %}
+{# vulnerabilities_defaults_applied #}
+<div class="page-header">
+    <h1 class="page-title">Vulnerabilities</h1>
+    <div class="page-actions">
+        <a href="{{ url_for('export_vulnerabilities') }}" class="btn btn-outline">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-download">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/>
+            </svg>
+            Export
+        </a>
+        <button class="btn btn-primary" onclick="location.reload()">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-refresh-cw">
+                <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/>
+            </svg>
+            Refresh
+        </button>
+    </div>
+</div>
+
+<div class="dashboard-cards">
+    <div class="card dashboard-stat-card card-blocked">
+        <div class="card-header">
+            <h2 class="card-title">Critical Vulnerabilities</h2>
+            <div class="card-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-shield-alert">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M12 8v4"/><path d="M12 16h.01"/>
+                </svg>
+            </div>
+        </div>
+        <div class="card-content">
+            <div class="card-value">{{ vulnerability_metrics.critical_active }}</div>
+            <div class="card-meta">Active</div>
+            <div class="card-description">Open critical vulnerabilities</div>
+        </div>
+    </div>
+    
+    <div class="card dashboard-stat-card card-vulnerability">
+        <div class="card-header">
+            <h2 class="card-title">High Vulnerabilities</h2>
+            <div class="card-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-alert-triangle">
+                    <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/>
+                </svg>
+            </div>
+        </div>
+        <div class="card-content">
+            <div class="card-value">{{ vulnerability_metrics.high_active }}</div>
+            <div class="card-meta">Active</div>
+            <div class="card-description">Open high-risk vulnerabilities</div>
+        </div>
+    </div>
+    
+    <div class="card dashboard-stat-card card-access">
+        <div class="card-header">
+            <h2 class="card-title">Medium Vulnerabilities</h2>
+            <div class="card-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-alert-circle">
+                    <circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/>
+                </svg>
+            </div>
+        </div>
+        <div class="card-content">
+            <div class="card-value">{{ vulnerability_metrics.medium_active }}</div>
+            <div class="card-meta">Active</div>
+            <div class="card-description">Open medium-risk vulnerabilities</div>
+        </div>
+    </div>
+    
+    <div class="card dashboard-stat-card card-score">
+        <div class="card-header">
+            <h2 class="card-title">Resolved / Open</h2>
+            <div class="card-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-info">
+                    <circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>
+                </svg>
+            </div>
+        </div>
+        <div class="card-content">
+            <div class="card-value">{{ vulnerability_metrics.fixed_total }} / {{ vulnerability_metrics.active_total }}</div>
+            <div class="card-meta">Fixed vs active</div>
+            <div class="card-description">Resolved vulnerabilities compared to currently active ones</div>
+        </div>
+    </div>
+</div>
+
+<div class="data-table-container">
+    <div class="data-table-header">
+        <h2 class="data-table-title">Severity Distribution</h2>
+    </div>
+    <div class="chart-panel">
+        <canvas id="severityChart" height="120"></canvas>
+    </div>
+</div>
+
+<div class="data-table-container">
+    <div class="data-table-header">
+        <h2 class="data-table-title">Vulnerability Report</h2>
+        <div class="data-table-actions">
+            <div class="search-box">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="search-icon lucide lucide-search">
+                    <circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>
+                </svg>
+                <input type="text" class="search-input" placeholder="Search vulnerabilities...">
+            </div>
+        </div>
+    </div>
+    
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th scope="col">Name</th>
+                <th scope="col">Severity</th>
+                <th scope="col">Endpoint</th>
+                <th scope="col">Detection Date</th>
+                <th scope="col">Status</th>
+                <th scope="col">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for vuln in vulnerabilities %}
+            <tr data-expandable="true" data-details-id="vuln-details-{{ vuln.id }}">
+                <td>{{ vuln.name }}</td>
+                <td>
+                    <span class="badge badge-{{ vuln.severity }}">{{ vuln.severity|capitalize }}</span>
+                </td>
+                <td>{{ vuln.endpoint }}</td>
+                <td>{{ vuln.detection_date }}</td>
+                <td>
+                    {% if vuln.status == 'open' %}
+                    <span class="badge badge-high">Open</span>
+                    {% elif vuln.status == 'in_progress' %}
+                    <span class="badge badge-medium">In Progress</span>
+                    {% elif vuln.status == 'fixed' %}
+                    <span class="badge badge-low">Fixed</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <button type="button" class="btn btn-outline btn-icon" aria-label="Toggle details for {{ vuln.name }}">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down">
+                            <path d="m6 9 6 6 6-6"/>
+                        </svg>
+                    </button>
+                </td>
+            </tr>
+            <tr id="vuln-details-{{ vuln.id }}" style="display: none;">
+                <td colspan="6">
+                    <div class="expandable-row-content">
+                        <h3 class="details-title">Vulnerability Details</h3>
+                        <p>{{ vuln.description }}</p>
+                        
+                        <div class="details-block">
+                            <h4>Affected Components</h4>
+                            <ul class="details-list">
+                                {% for component in vuln.affected_components %}
+                                <li>{{ component }}</li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                        
+                        {% if vuln.cve %}
+                        <div class="details-block">
+                            <p><strong>CVE:</strong> {{ vuln.cve }}</p>
+                        </div>
+                        {% endif %}
+                        
+                        <div class="details-block">
+                            <h4>Remediation</h4>
+                            <p>{{ vuln.remediation }}</p>
+                        </div>
+                        
+                        {% if vuln.references %}
+                        <div class="details-block">
+                            <h4>References</h4>
+                            <ul class="details-list">
+                                {% for ref in vuln.references %}
+                                <li><a href="{{ ref }}" target="_blank" class="details-link">{{ ref }}</a></li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                        {% endif %}
+                        
+                        <div class="details-actions">
+                            <button class="btn btn-outline">View Full Report</button>
+                            <button class="btn btn-primary">Mark as Fixed</button>
+                        </div>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<h2 class="section-title">Recent Vulnerability Timeline</h2>
+<div class="timeline">
+    <div class="timeline-item critical">
+        <div class="timeline-date">2025-04-07 10:15:30</div>
+        <div class="timeline-title">SQL Injection detected in /api/users/search</div>
+        <div class="timeline-content">
+            <p>SQL injection vulnerability in the user search API allows attackers to execute arbitrary SQL queries by manipulating the 'query' parameter.</p>
+            <div class="badge-row">
+                <span class="badge badge-critical">Critical</span>
+                <span class="badge badge-info">In Progress</span>
+            </div>
+        </div>
+    </div>
+    
+    <div class="timeline-item high">
+        <div class="timeline-date">2025-04-08 14:23:15</div>
+        <div class="timeline-title">Cross-Site Scripting (XSS) detected in /comments/create</div>
+        <div class="timeline-content">
+            <p>Reflected XSS vulnerability in the comment creation endpoint allows injection of arbitrary JavaScript via the 'content' parameter.</p>
+            <div class="badge-row">
+                <span class="badge badge-high">High</span>
+                <span class="badge badge-high">Open</span>
+            </div>
+        </div>
+    </div>
+    
+    <div class="timeline-item medium">
+        <div class="timeline-date">2025-04-05 16:42:10</div>
+        <div class="timeline-title">Insecure Direct Object Reference fixed in /api/documents/{id}</div>
+        <div class="timeline-content">
+            <p>Insecure direct object reference vulnerability in the document retrieval endpoint has been fixed by implementing proper access control checks.</p>
+            <div class="badge-row">
+                <span class="badge badge-medium">Medium</span>
+                <span class="badge badge-low">Fixed</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="{{ url_for('static', filename='js/chart-loader.js') }}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    loadChartJs(function() {
+        var ctx = document.getElementById('severityChart');
+        if (ctx) {
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['Critical', 'High', 'Medium', 'Low', 'Info'],
+                    datasets: [{
+                        label: 'Vulnerabilities',
+                        data: [
+                            {{ vulnerability_metrics.critical_active }},
+                            {{ vulnerability_metrics.high_active }},
+                            {{ vulnerability_metrics.medium_active }},
+                            {{ vulnerability_metrics.low_active }},
+                            0
+                        ],
+                        backgroundColor: [
+                            'rgba(211,47,47,0.8)',
+                            'rgba(244,67,54,0.8)',
+                            'rgba(255,152,0,0.8)',
+                            'rgba(76,175,80,0.8)',
+                            'rgba(33,150,243,0.8)'
+                        ]
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { display: false },
+                        title: { display: true, text: 'Severity Distribution' }
+                    }
+                }
+            });
+        }
+    });
+
+    // Handle expandable table rows
+    document.querySelectorAll('[data-expandable="true"]').forEach(row => {
+        const button = row.querySelector('button');
+        const detailsId = row.getAttribute('data-details-id');
+        const detailsRow = document.getElementById(detailsId);
+
+        if (button && detailsRow) {
+            button.addEventListener('click', function() {
+                const isExpanded = detailsRow.style.display !== 'none';
+                detailsRow.style.display = isExpanded ? 'none' : 'table-row';
+                this.setAttribute('aria-expanded', !isExpanded);
+                this.innerHTML = isExpanded ?
+                    `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down">
+                        <path d="m6 9 6 6 6-6"/>
+                    </svg>` :
+                    `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-up">
+                        <path d="m18 15-6-6-6 6"/>
+                    </svg>`;
+            });
+        }
+    });
+
+    // Handle search functionality
+    const searchInput = document.querySelector('.search-input');
+    if (searchInput) {
+        searchInput.addEventListener('input', function() {
+            const query = this.value.toLowerCase();
+            document.querySelectorAll('tbody tr[data-expandable="true"]').forEach(row => {
+                const name = row.cells[0].textContent.toLowerCase();
+                const severity = row.cells[1].textContent.toLowerCase();
+                const endpoint = row.cells[2].textContent.toLowerCase();
+                const visible = name.includes(query) || severity.includes(query) || endpoint.includes(query);
+                row.style.display = visible ? '' : 'none';
+                // Hide details row if main row is hidden
+                const detailsId = row.getAttribute('data-details-id');
+                const detailsRow = document.getElementById(detailsId);
+                if (detailsRow) {
+                    detailsRow.style.display = visible && detailsRow.style.display !== 'none' ? 'table-row' : 'none';
+                }
+            });
+        });
+    }
+});
+</script>
+{% endblock %}
+
